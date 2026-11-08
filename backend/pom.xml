@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 【给前端同学】这个文件 ≈ 前端项目的 package.json：
+     声明项目信息、依赖了哪些第三方库、怎么构建。
+     前端用 npm install 装依赖，Java 用 Maven（命令 mvn ...）读这个文件自动下载依赖。
+     本文件中注释用 XML 注释语法书写；标签的嵌套表示层级关系。 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <!-- ↑ 固定样板：声明 XML 命名空间和校验规则，照抄即可，不影响业务 -->
+  <modelVersion>4.0.0</modelVersion>   <!-- POM 格式版本，固定值 -->
+
+  <!-- ── parent：继承 Spring Boot 官方的「父配置」──
+       作用 ≈ 前端里继承一份公共的构建预设：
+       它统一管理几百个库的版本号，所以下面大多数依赖不用写 <version>，也不会版本冲突。 -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>            <!-- 组织名，≈ npm 的 scope -->
+    <artifactId>spring-boot-starter-parent</artifactId>    <!-- 父项目名 -->
+    <version>2.7.18</version>                              <!-- Spring Boot 版本；2.7 是 Java 8 可用的经典版本 -->
+    <relativePath/>                                        <!-- 空值 = 从远程仓库拉，不在本地找 -->
+  </parent>
+
+  <!-- ── 本项目自己的坐标（相当于 package.json 的 name / version）── -->
+  <groupId>com.example</groupId>              <!-- 组织/包名前缀，和 Java 的 package com.example 对应 -->
+  <artifactId>students-backend</artifactId>   <!-- 项目名，打包出来的 jar 就叫这个 -->
+  <version>1.0.0</version>                    <!-- 版本号 -->
+  <name>students-backend</name>               <!-- 显示名 -->
+  <description>学生管理系统后端（增删改查教学示例）</description> <!-- 描述 -->
+
+  <!-- ── 全局属性，≈ .env 里的常量，下面可以用 ${java.version} 引用 ── -->
+  <properties>
+    <java.version>8</java.version>   <!-- 按 Java 8 语法编译；本机装 JDK 11/17 也能跑 -->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding> <!-- 源码按 UTF-8 读，中文不乱码 -->
+  </properties>
+
+  <!-- ── 依赖清单，≈ package.json 的 dependencies + devDependencies ──
+       每个 <dependency> 用 groupId:artifactId:version 三个坐标唯一定位一个库。
+       和前端不同：Java 依赖要区分「作用范围」<scope>。 -->
+  <dependencies>
+
+    <!-- ① Web 起步包：内嵌 Tomcat + Spring MVC + Jackson（JSON 转换）
+         代码里的 @RestController / @GetMapping / 自动把对象转 JSON，全靠它
+         ≈ 前端同时装了 express + body-parser 之类的东西 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <!-- 没写 version：由上面的 parent 统一决定，避免版本打架 -->
+    </dependency>
+
+    <!-- ② MyBatis 起步包：把 Mapper 接口和 StudentMapper.xml 里的 SQL 绑定起来
+         项目里 @MapperScan / namespace / <if> 动态 SQL 都来自它 -->
+    <dependency>
+      <groupId>org.mybatis.spring.boot</groupId>
+      <artifactId>mybatis-spring-boot-starter</artifactId>
+      <version>2.3.2</version>   <!-- 这个不在 parent 管理范围内，所以显式写版本 -->
+    </dependency>
+
+    <!-- ③ 参数校验：提供 @Valid / @NotBlank / @Pattern 等注解
+         ≈ 后端版的 Element UI 表单 rules，防止别人绕过页面直接打接口 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
+    <!-- ④ H2 内存数据库：默认数据源，零安装、启动自带 10 条数据
+         runtime = 只在运行时需要，编译代码时不用（≈ devDependencies 的某种反向：代码里不 import 它） -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- ⑤ MySQL 驱动：只有切到 application-mysql.yml 时才真正用上 -->
+    <dependency>
+      <groupId>mysql</groupId>
+      <artifactId>mysql-connector-java</artifactId>
+      <version>8.0.33</version>
+      <scope>runtime</scope>   <!-- 同样是运行时才加载 -->
+    </dependency>
+  </dependencies>
+
+  <!-- ── 构建配置，≈ webpack / vue-cli-service 的配置 ── -->
+  <build>
+    <plugins>
+      <!-- Spring Boot 打包插件：提供 mvn spring-boot:run（直接启动），
+           以及把项目连同内嵌 Tomcat 打成一个可直接 java -jar 运行的 jar -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

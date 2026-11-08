@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- 【给前端同学】这个文件是 StudentMapper.java 里那 6 个「只有声明的方法」的**函数体**。
+     前端类比：≈ 把 src/mock/index.js 里 filter/slice/findIndex 那段内存操作，换成真正的 SQL。
+     MyBatis 靠两件事把接口方法和这里的 SQL 对上号：
+       ① <mapper namespace="..."> 必须等于 Java 接口的完整包名
+       ② 每个 <select>/<insert>/<update>/<delete> 的 id 必须等于接口里的方法名
+     注释不会被当成 SQL 发给数据库，可以放心写说明。 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- ↑ DTD 声明：告诉解析器这个 XML 允许哪些标签，照抄即可，不参与业务逻辑 -->
+
+<mapper namespace="com.example.students.mapper.StudentMapper">
+<!-- ↑ 绑定哪个 Java 接口；写错包名，启动时就会报「找不到语句」 -->
+
+    <!-- ── 可复用的 SQL 片段：按姓名模糊搜索的条件 ──
+         为什么抽出来？列表查询和 COUNT 查询必须用**完全相同**的 WHERE 条件，
+         否则会出现「表格显示 3 条、总数却是 10 条」这种分页 bug。
+         ≈ 前端把共用的过滤逻辑抽成一个函数，两处都调用它。 -->
+    <sql id="keywordWhere">
+        <!-- <where> 是 MyBatis 的智能标签：
+             里面有条件成立时才生成 WHERE 关键字，并自动去掉开头多余的 AND。
+             keyword 为空时，整个条件不生成 → 变成「查全部」。 -->
+        <where>
+            <!-- <if test="..."> ≈ JS 里的 if：只有传了关键词才拼这段条件 -->
+            <if test="keyword != null and keyword != ''">
+                <!-- LIKE 模糊匹配；CONCAT('%', ?, '%') 拼出 %张% 这种「包含」查询
+                     #{keyword} 是**预编译占位符**（最终变成 JDBC 的 ?），
+                     参数不会被当成 SQL 代码拼接，因此天然防 SQL 注入。
+                     对比 ${keyword} 是字符串直接拼接，不安全，本项目不用。 -->
+                AND name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <!-- ── ① 查当前页数据（对应前端表格 tableData）──
+         id="selectByPage" 对应 StudentMapper.java 的 selectByPage 方法。
+         parameterType：入参是 StudentQuery 对象，SQL 里可直接读它的属性。
+         resultType：查出的每一「行」自动转成一个 Student 对象，最终组成 List<Student>。 -->
+    <select id="selectByPage" parameterType="com.example.students.dto.StudentQuery"
+            resultType="com.example.students.entity.Student">
+        <!-- 只查需要的 5 列；class_name 列会按驼峰映射自动赋给 Student.className -->
+        SELECT id, name, age, class_name, phone
+        FROM students
+        <!-- <include> 把上面那段 WHERE 条件插进来，≈ 前端复用一个函数/模板片段 -->
+        <include refid="keywordWhere"/>
+        <!-- 排序必须有，否则分页每次返回的顺序可能不一样，翻页会看到重复/漏掉的数据 -->
+        ORDER BY id ASC
+        <!-- LIMIT = 每页几条（来自 query.pageSize）；OFFSET = 跳过几行（来自 Service 算好的 query.offset）
+             ≈ Mock 里的 filtered.slice(start, end)，其中 start = (page-1)*pageSize -->
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <!-- ── ② 查符合条件的总条数（对应分页组件 :total）──
+         前端 el-pagination 要显示「共 N 条」，光靠当前页数据是算不出来的，必须单独 COUNT 一次。 -->
+    <select id="countByKeyword" parameterType="com.example.students.dto.StudentQuery"
+            resultType="java.lang.Long">
+        <!-- COUNT(*) 返回的是一个数字，所以 resultType 是 Long（对应接口方法的 long 返回值） -->
+        SELECT COUNT(*)
+        FROM students
+        <!-- ★ 复用同一个条件片段，保证「列表」和「总数」口径一致 -->
+        <include refid="keywordWhere"/>
+    </select>
+
+    <!-- ── ③ 按 id 查单个学生 ──
+         Service 编辑前用它判断学生是否存在；查不到时 MyBatis 返回 null。
+         #{id} 对应接口方法上的 @Param("id")。 -->
+    <select id="selectById" resultType="com.example.students.entity.Student">
+        SELECT id, name, age, class_name, phone
+        FROM students
+        WHERE id = #{id}
+    </select>
+
+    <!-- ── ④ 新增 ──
+         useGeneratedKeys="true" keyProperty="id" 是本项目很关键的一处：
+         插入后把数据库自动生成的自增主键**回填**到传进来的 Student 对象的 id 属性上。
+         所以 Service 的 add() 不用再查一次，直接 return student 就带 id 了
+         （≈ Mock 里 student.id = maxId + 1，这里由数据库负责算）。
+         VALUES 里的 #{name}/#{age}/#{className}/#{phone} 会调用 Student 的 getter 取值，
+         注意 #{className} 是 Java 属性名，最终写到 class_name 列。 -->
+    <insert id="insert" parameterType="com.example.students.entity.Student"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO students (name, age, class_name, phone)
+        VALUES (#{name}, #{age}, #{className}, #{phone})
+    </insert>
+
+    <!-- ── ⑤ 更新 ──
+         WHERE id = #{id} 千万别漏，漏了会把整张表所有行都改掉。
+         SET 里用 #{className}（Java 属性）给 class_name（数据库列）赋值。 -->
+    <update id="update" parameterType="com.example.students.entity.Student">
+        UPDATE students
+        SET name = #{name},
+            age = #{age},
+            class_name = #{className},
+            phone = #{phone}
+        WHERE id = #{id}
+    </update>
+
+    <!-- ── ⑥ 删除 ──
+         执行后返回「受影响行数」：删掉 1 行返回 1，id 不存在返回 0。
+         Service 就是靠 == 0 判断「学生不存在」并抛 code 404 的。 -->
+    <delete id="deleteById">
+        DELETE FROM students
+        WHERE id = #{id}
+    </delete>
+</mapper>

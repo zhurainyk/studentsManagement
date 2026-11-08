@@ -1,0 +1,45 @@
+# 【给前端同学】这个文件 ≈ 前端的 vue.config.js + .env 合体：
+# 所有「不改 Java 代码就能改行为」的开关都在这，程序启动时由 Spring 自动读取。
+# YAML 用缩进表示层级（和 Python 一样，靠空格，不能用 Tab），# 开头是注释。
+# 冒号左边的 key 相当于配置项名字，右边是值；下面缩进的都是它的子配置。
+
+server:                       # ── Web 服务器相关 ──
+  port: 8081                  # 后端监听端口。前端是 8080，vue.config.js 的代理目标写死 8081，改这里要同步改那边
+
+spring:                       # ── Spring 框架的总配置 ──
+  application:
+    name: students-backend    # 应用名，仅用于标识/日志，不影响功能（≈ package.json 的 name）
+
+  # 数据源 = 数据库连到哪里。默认 H2 内存库：不用安装 MySQL，开箱即用。
+  # 「内存库」意味着数据存在进程内存里，进程一停数据就没了，所以适合练习不适合生产。
+  datasource:
+    url: jdbc:h2:mem:students;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    # ↑ jdbc:h2:mem:students → 建一个名叫 students 的内存库
+    #   MODE=MySQL → 让 H2 尽量「说 MySQL 方言」，这样同一份 SQL 换真 MySQL 也能跑
+    #   DB_CLOSE_DELAY=-1 / DB_CLOSE_ON_EXIT=FALSE → 连接关闭、程序没退出时，内存库别被销毁
+    driver-class-name: org.h2.Driver   # 用哪个驱动连库（≈ 前端指定用哪个 adapter），对应 pom.xml 的 h2 依赖
+    username: sa                       # H2 默认用户名；访问 h2-console 时也填这个
+    password: ""                       # H2 默认密码为空字符串
+
+  # 启动时的数据库初始化：这是「为什么每次重启都有干净的 10 条数据」的原因。
+  sql:
+    init:
+      mode: always                              # always = 每次启动都执行下面两个脚本
+      schema-locations: classpath:schema-h2.sql  # ① 先建表（DDL）
+      data-locations: classpath:data.sql         # ② 再插入 10 条初始数据
+      encoding: UTF-8                            # 按 UTF-8 读脚本，保证中文姓名不乱码
+      # classpath: ≈ 「从 resources 目录里找文件」
+
+  # H2 自带的网页版数据库查看工具：不用装 Navicat 也能看表里的数据
+  h2:
+    console:
+      enabled: true            # 开启，false 则不开放这个调试入口
+      path: /h2-console        # 访问地址 http://localhost:8081/h2-console
+                               # 登录时 JDBC URL 填 jdbc:h2:mem:students，用户 sa，密码留空
+
+mybatis:                      # ── MyBatis（把 Mapper 接口和 SQL 文件绑起来）相关 ──
+  mapper-locations: classpath:mapper/*.xml   # 去 resources/mapper/ 下加载所有 .xml，
+                                             # 也就是 StudentMapper.xml（接口方法对应的「函数体」）
+  configuration:
+    map-underscore-to-camel-case: true       # ★ 数据库列 class_name ↔ Java/前端字段 className 自动互转。
+                                             #   少了这一行，前端表格的班级列会全是 undefined/空。
